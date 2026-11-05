@@ -1,3 +1,4 @@
+
 <script setup>
 import {
   ref,
@@ -11,6 +12,7 @@ import {
 
 import { tabsKey } from './tabsKey.js'
 
+// Пропси компонента
 const props = defineProps({
   modelValue: {
     type: String,
@@ -24,19 +26,31 @@ const props = defineProps({
   }
 })
 
+// Подія для v-model
 const emit = defineEmits(['update:modelValue'])
 
+// Зареєстровані вкладки
 const tabs = ref([])
+
+// Унікальний префікс для ARIA
 const idPrefix = useId()
 
+// Поточна активна вкладка
 const activeSlug = computed(() => props.modelValue)
 
+// Доступні вкладки
 const availableTabs = computed(() =>
   tabs.value.filter(tab => !tab.disabled)
 )
 
+// Посилання на кнопки вкладок
+const buttons = ref({})
+
+// Перемикання активної вкладки
 function setActiveTab(slug) {
-  const tab = tabs.value.find(item => item.slug === slug)
+  const tab = tabs.value.find(
+    item => item.slug === slug
+  )
 
   if (!tab || tab.disabled) return
 
@@ -45,39 +59,59 @@ function setActiveTab(slug) {
   }
 }
 
+// Реєстрація вкладки
 function registerTab(tab) {
-  if (tabs.value.some(item => item.slug === tab.slug)) {
-    throw new Error(`Повторний slug вкладки: ${tab.slug}`)
+  const exists = tabs.value.some(
+    item => item.slug === tab.slug
+  )
+
+  if (exists) {
+    throw new Error(
+      `Вкладка зі slug "${tab.slug}" вже існує`
+    )
   }
 
   tabs.value.push(tab)
 
-  if (
-    !tabs.value.some(
-      item => item.slug === props.modelValue && !item.disabled
-    )
-  ) {
-    const first = availableTabs.value[0]
-    if (first) setActiveTab(first.slug)
+  // Якщо активна вкладка не існує або недоступна
+  const activeExists = tabs.value.some(
+    item =>
+      item.slug === props.modelValue &&
+      !item.disabled
+  )
+
+  if (!activeExists && availableTabs.value.length) {
+    setActiveTab(availableTabs.value[0].slug)
   }
 }
 
+// Видалення вкладки
 function unregisterTab(slug) {
-  tabs.value = tabs.value.filter(tab => tab.slug !== slug)
+  tabs.value = tabs.value.filter(
+    tab => tab.slug !== slug
+  )
+
+  delete buttons.value[slug]
 
   if (props.modelValue === slug) {
     const first = availableTabs.value[0]
-    if (first) emit('update:modelValue', first.slug)
+
+    if (first) {
+      emit('update:modelValue', first.slug)
+    }
   }
 }
 
+// Перевірка modelValue при зміні
 watch(
   () => props.modelValue,
   slug => {
     if (!tabs.value.length) return
 
     const valid = tabs.value.some(
-      tab => tab.slug === slug && !tab.disabled
+      tab =>
+        tab.slug === slug &&
+        !tab.disabled
     )
 
     if (!valid && availableTabs.value.length) {
@@ -86,6 +120,7 @@ watch(
   }
 )
 
+// Передавання контексту дочірнім Tab
 provide(tabsKey, {
   activeSlug: readonly(activeSlug),
   idPrefix,
@@ -94,43 +129,76 @@ provide(tabsKey, {
   unregisterTab
 })
 
-const buttons = ref([])
-
-async function focusTab(slug) {
-  setActiveTab(slug)
-  await nextTick()
-
-  const index = tabs.value.findIndex(tab => tab.slug === slug)
-  buttons.value[index]?.focus()
+// Збереження посилання на кнопку
+function setButtonRef(slug, element) {
+  if (element) {
+    buttons.value[slug] = element
+  } else {
+    delete buttons.value[slug]
+  }
 }
 
-function handleKeydown(event, slug) {
-  const keys = ['ArrowRight', 'ArrowLeft', 'Home', 'End']
+// Активація вкладки та встановлення фокуса
+async function focusTab(slug) {
+  setActiveTab(slug)
 
-  if (!keys.includes(event.key)) return
+  await nextTick()
+
+  const button = buttons.value[slug]
+
+  if (button && !button.disabled) {
+    button.focus()
+  }
+}
+
+// Обробка клавіатурної навігації
+function handleKeydown(event, slug) {
+  const supportedKeys = [
+    'ArrowRight',
+    'ArrowLeft',
+    'Home',
+    'End'
+  ]
+
+  if (!supportedKeys.includes(event.key)) {
+    return
+  }
 
   event.preventDefault()
 
   const list = availableTabs.value
+
   if (!list.length) return
 
-  const index = list.findIndex(tab => tab.slug === slug)
-  let nextIndex = index
+  const currentIndex = list.findIndex(
+    tab => tab.slug === slug
+  )
 
-  if (event.key === 'ArrowRight') {
-    nextIndex = (index + 1) % list.length
-  }
+  if (currentIndex === -1) return
 
-  if (event.key === 'ArrowLeft') {
-    nextIndex = (index - 1 + list.length) % list.length
-  }
+  let nextIndex = currentIndex
 
-  if (event.key === 'Home') {
-    nextIndex = 0
-  }
+  switch (event.key) {
+    case 'ArrowRight':
+      // Наступна вкладка, циклічно
+      nextIndex = (currentIndex + 1) % list.length
+      break
 
-  if (event.key === 'End') {
-    nextIndex = list.length - 1
+    case 'ArrowLeft':
+      // Попередня вкладка, циклічно
+      nextIndex =
+        (currentIndex - 1 + list.length) % list.length
+      break
+
+    case 'Home':
+      // Перша доступна вкладка
+      nextIndex = 0
+      break
+
+    case 'End':
+      // Остання доступна вкладка
+      nextIndex = list.length - 1
+      break
   }
 
   focusTab(list[nextIndex].slug)
@@ -140,26 +208,24 @@ function handleKeydown(event, slug) {
 <template>
   <div
     class="tabs"
-    :class="{
-      'tabs--underline': variant === 'underline',
-      'tabs--pills': variant === 'pills',
-      'tabs--boxed': variant === 'boxed'
-    }"
+    :class="`tabs--${variant}`"
   >
+    <!-- Панель навігації -->
     <div
       class="tabs__list"
       role="tablist"
       aria-label="Навігація вкладками"
     >
       <button
-        v-for="(tab, index) in tabs"
+        v-for="tab in tabs"
         :key="tab.slug"
-        :ref="el => buttons[index] = el"
+        :ref="el => setButtonRef(tab.slug, el)"
         type="button"
         role="tab"
         class="tabs__tab"
         :class="{
-          'tabs__tab--active': activeSlug === tab.slug
+          'tabs__tab--active':
+            activeSlug === tab.slug
         }"
         :id="`${idPrefix}-tab-${tab.slug}`"
         :aria-controls="`${idPrefix}-panel-${tab.slug}`"
@@ -173,11 +239,13 @@ function handleKeydown(event, slug) {
       </button>
     </div>
 
+    <!-- Вміст вкладок -->
     <div class="tabs__content">
       <slot />
     </div>
   </div>
 </template>
+
 <style scoped lang="scss">
 .tabs {
   @apply w-full min-w-0;
@@ -188,9 +256,13 @@ function handleKeydown(event, slug) {
 
   &__tab {
     @apply cursor-pointer px-5 py-3;
+    @apply border-0 bg-transparent;
     @apply font-semibold text-muted;
     @apply transition-colors duration-200;
-    @apply border-0 bg-transparent;
+
+    &:hover:not(:disabled) {
+      @apply text-ink;
+    }
 
     &:focus-visible {
       @apply outline outline-2 outline-offset-2 outline-accent;
@@ -205,6 +277,7 @@ function handleKeydown(event, slug) {
     @apply min-w-0 py-5;
   }
 
+  // Underline
   &--underline {
     .tabs__list {
       @apply border-b border-edge;
@@ -219,6 +292,7 @@ function handleKeydown(event, slug) {
     }
   }
 
+  // Pills
   &--pills {
     .tabs__tab {
       @apply rounded-full bg-surface;
@@ -229,6 +303,7 @@ function handleKeydown(event, slug) {
     }
   }
 
+  // Boxed
   &--boxed {
     .tabs__list {
       @apply rounded-xl bg-surface p-2;

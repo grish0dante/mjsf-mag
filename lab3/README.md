@@ -1,5 +1,179 @@
-# Vue 3 + Vite
+# Лабораторна робота № 3 — Адаптивне модальне вікно у Vue 3
 
-This template should help get you started developing with Vue 3 in Vite. The template uses Vue 3 `<script setup>` SFCs, check out the [script setup docs](https://v3.vuejs.org/api/sfc-script-setup.html#sfc-script-setup) to learn more.
+**Дисципліна:** Сучасні каркаси web-додатків  
+**Студент:** [Грішанов Данило Євгенович]  
+**Група:** [7.F2.25-2]  
+**Репозиторій:** [(https://github.com/grish0dante/mjsf-mag/tree/main/lab3)]  
+**Каталог роботи:** `lab3`
 
-Learn more about IDE Support for Vue in the [Vue Docs Scaling up Guide](https://vuejs.org/guide/scaling-up/tooling.html#ide-support).
+## Мета роботи
+
+Розширити каталог навчальних матеріалів із попередньої лабораторної роботи універсальним адаптивним модальним вікном. Навчитися використовувати слоти, реактивні й шаблонні `ref`, `Teleport`, `Transition`, а також керувати фокусом клавіатури й блокуванням фону.
+
+## Функціональність
+
+- Редагування назви й тривалості навчального матеріалу в модальному вікні.
+- Перевірка введення: назва після `trim()` не порожня; тривалість — додатне ціле число.
+- Підтвердження видалення матеріалу в тому самому компоненті діалогу.
+- Скасування без застосування змін до каталогу.
+- Закриття через хрестик, Escape, кнопку «Скасувати» та натискання на підкладку.
+- Початковий фокус у полі назви або на кнопці скасування, утримання Tab / Shift+Tab у діалозі.
+- Повернення фокуса до кнопки виклику або заголовка каталогу після закриття.
+- Блокування взаємодії з фоном (`inert`) і прокручування сторінки до завершення закриття.
+- Плавна поява та зникнення з підтримкою `prefers-reduced-motion`.
+- Реактивне оновлення карток, фільтрів, вибору за `id`, кількості та сумарної тривалості.
+- Адаптивне оформлення модального вікна для мобільних пристроїв, планшетів і ПК.
+
+## Використані технології
+
+- Vue 3, JavaScript, Composition API, `<script setup>`.
+- Vite — розробка та production-збірка.
+- Tailwind CSS 3.4.17 — оформлення нових елементів.
+- PostCSS 8.5.6 і Autoprefixer 10.4.21 — обробка CSS.
+- CSS попереднього каталогу — збережене оформлення лабораторної № 2.
+- Node.js 24 LTS, npm, Git.
+
+Точні версії залежностей проєкту зафіксовано в `package-lock.json`.
+
+## Структура проєкту
+
+```text
+lab3/
+├── index.html
+├── package.json
+├── package-lock.json
+├── tailwind.config.js
+├── postcss.config.js
+├── README.md
+└── src/
+    ├── main.js
+    ├── App.vue
+    ├── style.css
+    ├── data/
+    │   └── materials.js
+    └── components/
+        ├── MaterialCard.vue
+        ├── MaterialFilterForm.vue
+        ├── MaterialCatalog.vue
+        └── ModalDialog.vue
+```
+
+## Опис компонентів
+
+| Компонент | Призначення |
+|---|---|
+| `App.vue` | Коренева сторінка з каталогом та ідентифікаційною інформацією студента. |
+| `MaterialCard.vue` | Картка матеріалу з подіями `select`, `edit`, `delete`. |
+| `MaterialFilterForm.vue` | Форма фільтрації за назвою й темою. |
+| `MaterialCatalog.vue` | Робочий масив матеріалів, вибір за `id`, чернетка редагування, перевірка даних, збереження та видалення. |
+| `ModalDialog.vue` | Перевикористовуване модальне вікно з фокусом, Teleport, Transition і слотами. |
+| `data/materials.js` | Початкові дані; оригінальний масив не змінюється безпосередньо. |
+
+## Контракт ModalDialog
+
+### Пропси
+
+| Пропс | Тип | Опис |
+|---|---|---|
+| `modelValue` | `Boolean` | Стан відкриття діалогу; за замовчуванням `false`. |
+| `title` | `String` | Обов'язковий заголовок діалогу. |
+| `initialFocus` | DOM-елемент або `null` | Елемент, на який переводиться початковий фокус. |
+| `fallbackFocus` | DOM-елемент або `null` | Резервна ціль для повернення фокуса. |
+
+### Подія
+
+`update:modelValue` — повідомляє батьківський компонент про зміну стану відкриття; використовується через `v-model`.
+
+### Слоти
+
+- Слот за замовчуванням — форма редагування або текст підтвердження.
+- Іменований слот `footer` — кнопки «Скасувати», «Зберегти» або «Видалити»; може отримувати функцію `close` через параметри слота.
+
+### Приклад використання
+
+```vue
+<ModalDialog
+  v-model="isOpen"
+  :title="dialogTitle"
+  :initial-focus="initialFocus"
+  :fallback-focus="catalogHeading"
+>
+  <p>Вміст поточного сценарію</p>
+
+  <template #footer>
+    <button type="button" @click="isOpen = false">
+      Скасувати
+    </button>
+  </template>
+</ModalDialog>
+```
+
+## Архітектура та поведінка
+
+1. `ref()` зберігає робочий список `items`, `isOpen`, `selectedId`, `editingId`, `dialogMode` і чернетку `draft`.
+2. `computed()` обчислює відфільтрований список, сумарну тривалість і заголовок діалогу.
+3. `Teleport to="body"` розміщує DOM модального вікна поза `#app`, зберігаючи логічний зв'язок із каталогом.
+4. `Transition` анімує появу/зникнення; фон розблоковується після `after-leave`.
+5. Шаблонні `ref` надають доступ до панелі, поля назви, кнопки скасування та заголовка каталогу для керування фокусом.
+6. `inert` блокує основний застосунок; попередній `body.style.overflow` відновлюється після закриття.
+7. Редагування спочатку змінює тільки чернетку; основний масив оновлюється після перевірки та збереження.
+8. Видалення відбувається тільки після підтвердження. Вибір за стабільним `id` узгоджується зі списком.
+
+Дані зберігаються лише в пам'яті: без HTTP-запитів, маршрутизації та `localStorage`.
+
+## Встановлення та запуск
+
+Перейдіть у каталог роботи:
+
+```bash
+cd lab3
+```
+
+Встановіть залежності за `package-lock.json`:
+
+```bash
+npm ci
+```
+
+Якщо Tailwind ще не підключений у вихідному проєкті, встановіть його й створіть конфігурації:
+
+```bash
+npm install -D --save-exact tailwindcss@3.4.17 postcss@8.5.6 autoprefixer@10.4.21
+npx tailwindcss init -p
+```
+
+Конфігурація `tailwind.config.js`:
+
+```js
+export default {
+  content: ['./index.html', './src/**/*.{vue,js}'],
+  corePlugins: { preflight: false },
+  theme: { extend: {} },
+  plugins: []
+}
+```
+
+Наприкінці `src/style.css` повинні бути директиви:
+
+```css
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+```
+
+Запустіть застосунок:
+
+```bash
+npm run dev -- --port 5173 --strictPort
+```
+
+Адреса: `http://localhost:5173`.
+
+## Збірка та попередній перегляд
+
+```bash
+npm run build
+npm run preview -- --port 4173 --strictPort
+```
+
+Адреса preview: `http://localhost:4173`. Зупинка сервера: `Ctrl + C`.

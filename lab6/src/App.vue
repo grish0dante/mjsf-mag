@@ -46,10 +46,10 @@ const catalogLink = computed(() => ({
 
     <footer class="storefront__footer">
       <div>
-        <p>Студент: Прізвище Ім'я</p>
-        <p>Група: Ваша група</p>
+        <p>Студент: Грішанов Данило Євгенович</p>
+        <p>Група: 7.F2.25-2</p>
         <p>Vue 3 · Vue Router 4.6.4 · Vite</p>
-        <p>Node.js 24 LTS · npm · Windows</p>
+        <p>Node.js 22.15.1 · npm · Windows</p>
       </div>
 
       <a
